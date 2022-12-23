@@ -95,47 +95,35 @@ func proxyStart(fromPort, toPort uint16, toHost string) {
 			fmt.Printf("Unable to accept a request, error: %s\n", err.Error())
 			continue
 		}
-		/*
-			// Read a header firstly in case you could have opportunity to check request
-			// whether to decline or proceed the request
-			buffer := make([]byte, 1024)
-			n, err := proxyConn.Read(buffer)
-			if err != nil {
-				fmt.Printf("%v read error: %s\n", proxyConn.RemoteAddr(), err.Error())
-				continue
-			}
-		*/
-		// TODO
-		// Your choice to make decision based on request header
-
-		targetAddr := fmt.Sprintf("%s:%d", toHost, toPort)
-		targetConn, err := net.Dial("tcp", targetAddr)
-		if err != nil {
-			fmt.Printf("Unable to connect to: %s, error: %s\n\n", targetAddr, err.Error())
-			proxyConn.Close()
-			continue
-		}
-		/*
-			_, err = targetConn.Write(buffer[:n])
-			if err != nil {
-				fmt.Printf("Unable to write to output, error: %s\n", err.Error())
-				proxyConn.Close()
-				targetConn.Close()
-				continue
-			}
-		*/
-		fmt.Printf("new connection %v --> %v\n", proxyConn.RemoteAddr(), targetConn.RemoteAddr())
-		go proxyRequest(proxyConn, targetConn)
-		go proxyRequest(targetConn, proxyConn)
+		go handle(proxyConn, fmt.Sprintf("%s:%d", toHost, toPort))
 	}
 }
+func handle(src net.Conn, targetAddr string) {
+	defer src.Close()
 
-// Forward all requests from r to w
-func proxyRequest(r net.Conn, w net.Conn) {
-	defer r.Close()
-	defer w.Close()
-	if _, err := io.Copy(w, r); err != nil {
-		fmt.Println(err)
+	dest, err := net.Dial("tcp", targetAddr)
+	if err != nil {
+		fmt.Printf("Unable to connect to: %s, error: %s\n\n", targetAddr, err.Error())
+		return
 	}
-	fmt.Printf("close %v --> %v\n", r.RemoteAddr(), w.RemoteAddr())
+	defer dest.Close()
+
+	fmt.Printf("new connection %v --> %v\n", src.RemoteAddr(), dest.RemoteAddr())
+	defer fmt.Printf("close %v --> %v\n", src.RemoteAddr(), dest.RemoteAddr())
+
+	exitchan := make(chan bool, 1)
+
+	go func() {
+		_, err := io.Copy(dest, src)
+		fmt.Println(err)
+		exitchan <- true
+	}()
+
+	go func() {
+		_, err := io.Copy(src, dest)
+		fmt.Println(err)
+		exitchan <- true
+	}()
+
+	<-exitchan
 }
