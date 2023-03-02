@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,8 +25,19 @@ type Proxy struct {
 type Config []Proxy
 
 func main() {
+	jsonFile := flag.String("conf", "config.json", "json configure file")
+	flag.Parse()
+
 	var conf Config
-	confFile := filepath.Dir(os.Args[0]) + "/config.json"
+	var confFile string
+	if filepath.IsAbs(*jsonFile) {
+		confFile = *jsonFile
+	} else {
+		confFile, _ = filepath.Abs(*jsonFile)
+		if confFile == "" {
+			confFile = filepath.Join(filepath.Dir(os.Args[0]), *jsonFile)
+		}
+	}
 	dat, err := ioutil.ReadFile(confFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
