@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Port struct {
@@ -25,17 +26,17 @@ type Proxy struct {
 type Config []Proxy
 
 func main() {
-	jsonFile := flag.String("conf", "config.json", "json configure file")
+	confName := flag.String("conf", "config.yaml", "yaml configure file")
 	flag.Parse()
 
 	var conf Config
 	var confFile string
-	if filepath.IsAbs(*jsonFile) {
-		confFile = *jsonFile
+	if filepath.IsAbs(*confName) {
+		confFile = *confName
 	} else {
-		confFile, _ = filepath.Abs(*jsonFile)
+		confFile, _ = filepath.Abs(*confName)
 		if confFile == "" {
-			confFile = filepath.Join(filepath.Dir(os.Args[0]), *jsonFile)
+			confFile = filepath.Join(filepath.Dir(os.Args[0]), *confName)
 		}
 	}
 	dat, err := ioutil.ReadFile(confFile)
@@ -57,7 +58,7 @@ func main() {
 					To:   5900,
 				})
 			conf = []Proxy{proxy}
-			dat, err = json.MarshalIndent(conf, "", "  ")
+			dat, err = yaml.Marshal(conf)
 			if err == nil {
 				ioutil.WriteFile(confFile, dat, os.ModePerm)
 			}
@@ -65,9 +66,9 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	err = json.Unmarshal(dat, &conf)
+	err = yaml.Unmarshal(dat, &conf)
 	if err != nil {
-		fmt.Printf("json Unmarshal error: %v", err)
+		fmt.Printf("yaml Unmarshal error: %v", err)
 		return
 	}
 	var wg sync.WaitGroup
