@@ -13,18 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-var g_Tasks = []TaskConf{
-	{Name: "fedora", Host: "192.168.100.128", Ports: []Port{
-		{From: 5510, To: 5510},
-		{From: 5710, To: 5710},
-		{From: 5910, To: 5910},
-	}},
-	{Name: "ubuntu", Host: "192.168.100.34", Ports: []Port{
-		{From: 5510, To: 5510},
-		{From: 5710, To: 5710},
-		{From: 5910, To: 5910},
-	}},
-}
+var g_Tasks []TaskConf
 
 // App struct
 type App struct {
@@ -115,7 +104,11 @@ func (a *App) systemTray() {
 	exit := systray.AddMenuItem("Exit", "Quit The Program")
 
 	show.Click(func() { runtime.WindowShow(a.ctx) })
-	exit.Click(func() { os.Exit(0) })
+	exit.Click(func() {
+		systray.Quit()
+		runtime.Quit(a.ctx)
+		// os.Exit(0)
+	})
 
 	systray.SetOnDClick(func(menu systray.IMenu) { runtime.WindowShow(a.ctx) })
 	systray.SetOnRClick(func(menu systray.IMenu) { menu.ShowMenu() })
@@ -149,11 +142,26 @@ func saveConfig() {
 	os.WriteFile(filepath.Join(dir, "config.json"), buff, 0777)
 }
 func init() {
+	initwsl()
 	exe, _ := os.Executable()
 	dir := filepath.Dir(exe)
 	buff, err := os.ReadFile(filepath.Join(dir, "config.json"))
 	if err != nil {
 		return
 	}
-	json.Unmarshal(buff, &g_Tasks)
+	var tasks []TaskConf
+	json.Unmarshal(buff, &tasks)
+	for _, task := range tasks {
+		find := false
+		for i, t := range g_Tasks {
+			if t.Host == task.Host {
+				g_Tasks[i] = task
+				find = true
+				break
+			}
+		}
+		if !find {
+			g_Tasks = append(g_Tasks, task)
+		}
+	}
 }
