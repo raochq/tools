@@ -20,7 +20,7 @@
     },
     "StringFileInfo": {
         "Comments": "阻止电脑睡眠锁屏",
-        "CompanyName": "这是公司名称",
+        "CompanyName": "阿饶的小工具",
         "FileDescription": "一个阻止电脑睡眠的小工具",
         "FileVersion": "v1.0.0.0",
         "InternalName": "nosleep",
@@ -28,7 +28,7 @@
         "LegalTrademarks": "",
         "OriginalFilename": "nosleep.exe",
         "PrivateBuild": "",
-        "ProductName": "这是产品名称",
+        "ProductName": "no sleep",
         "ProductVersion": "v1.0.0.0",
         "SpecialBuild": ""
     },

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"syscall"
-	"unsafe"
 
 	"github.com/energye/systray"
 	"golang.org/x/sys/windows"
@@ -27,9 +26,6 @@ const (
 var (
 	setThreadExecutionState *windows.LazyProc
 	systemParametersInfo    *windows.LazyProc
-	createMutex             *windows.LazyProc
-	releaseMutex            *windows.LazyProc
-	openMutex               *windows.LazyProc
 )
 
 //go:embed nosleep.ico
@@ -44,9 +40,6 @@ type SECURITY_ATTRIBUTES struct {
 func init() {
 	libkernel32 := windows.NewLazySystemDLL("kernel32.dll")
 	setThreadExecutionState = libkernel32.NewProc("SetThreadExecutionState")
-	createMutex = libkernel32.NewProc("CreateMutexW")
-	releaseMutex = libkernel32.NewProc("ReleaseMutex")
-	openMutex = libkernel32.NewProc("OpenMutexW")
 
 	libuser32 := windows.NewLazySystemDLL("user32.dll")
 	systemParametersInfo = libuser32.NewProc("SystemParametersInfoW")
@@ -60,36 +53,7 @@ func SetThreadExecutionState(hWnd windows.Handle) windows.Handle {
 
 func SystemParametersInfo(uiAction, uiParam uintptr, PVOID, fWinIni uintptr) windows.Handle {
 	ret, _, _ := syscall.SyscallN(systemParametersInfo.Addr(), uintptr(uiAction), uintptr(uiParam), uintptr(PVOID), uintptr(fWinIni))
-	return windows.Handle(ret)
-}
 
-func CreateMutex(lpMutexAttributes *SECURITY_ATTRIBUTES, bInitialOwner bool, lpName string) windows.Handle {
-	_p1 := uint32(0)
-	if bInitialOwner {
-		_p1 = 1
-	}
-	_p2, err := syscall.UTF16PtrFromString(lpName)
-	if err != nil {
-		return 0
-	}
-	ret, _, _ := syscall.SyscallN(createMutex.Addr(), uintptr(unsafe.Pointer(lpMutexAttributes)), uintptr(_p1), uintptr(unsafe.Pointer(_p2)))
-	return windows.Handle(ret)
-}
-func ReleaseMutex(hMutex windows.Handle) bool {
-	ret, _, _ := syscall.SyscallN(releaseMutex.Addr(), uintptr(hMutex))
-	return ret != 0
-}
-
-func OpenMutex(dwDesiredAccess uint32, bInheritHandle bool, lpName string) windows.Handle {
-	_p1 := uint32(0)
-	if bInheritHandle {
-		_p1 = 1
-	}
-	_p2, err := syscall.UTF16PtrFromString(lpName)
-	if err != nil {
-		return 0
-	}
-	ret, _, _ := syscall.SyscallN(openMutex.Addr(), uintptr(dwDesiredAccess), uintptr(_p1), uintptr(unsafe.Pointer(_p2)))
 	return windows.Handle(ret)
 }
 
@@ -111,10 +75,11 @@ func BlockSleep(noSleep bool) {
 
 func main() {
 	// 只允许一个实例运行
-	hMutex := CreateMutex(nil, true, "nosleep")
-	if hMutex == 0 {
+	lpName, _ := syscall.UTF16PtrFromString("nosleep")
+	hMutex, err := windows.CreateMutex(nil, true, lpName)
+	if hMutex == 0 || err != nil {
+		slog.Error("CreateMutex", "error", err)
 		text, _ := syscall.UTF16PtrFromString("CreateMutex failed")
-
 		windows.MessageBox(0, text, nil, windows.MB_ICONERROR)
 	}
 	event, err := windows.WaitForSingleObject(hMutex, 0)
@@ -123,13 +88,14 @@ func main() {
 		os.Exit(1)
 	}
 	if event == windows.WAIT_OBJECT_0 || event == windows.WAIT_ABANDONED {
-		defer ReleaseMutex(hMutex)
+		defer windows.ReleaseMutex(hMutex)
 		systray.Run(onReady, onExit)
 	} else {
 		text, _ := syscall.UTF16PtrFromString("nosleep is already running")
 		windows.MessageBox(0, text, nil, windows.MB_ICONERROR)
 	}
 }
+
 func onReady() {
 	systray.SetIcon(icon)
 	m := systray.AddMenuItemCheckbox("阻止锁屏", "阻止电脑睡眠", true)
